@@ -1,0 +1,20 @@
+# Required variables - Update with your values
+project_id                     = "your-gcp-project-id"
+existing_service_account_email = "your-existing-service-account@your-project.iam.gserviceaccount.com"
+
+# Optional variables - Can use defaults
+region                = "us-central1"
+environment           = "dev"
+service_name          = "audit-processor"
+pubsub_topic_name     = "audit-logs"
+log_sink_name         = "audit-log-sink"
+batch_size            = 100
+worker_count          = 10
+
+# Labels for resources
+labels = {
+  project     = "audit-processor"
+  environment = "dev"
+  managed-by  = "terraform"
+  team        = "platform"
+}

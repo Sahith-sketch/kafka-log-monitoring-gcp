@@ -1,0 +1,23 @@
+resource "google_storage_bucket" "audit_logs" {
+  name     = "${var.project_id}-${var.service_name}-logs"
+  location = var.region
+
+  uniform_bucket_level_access = true
+
+  lifecycle_rule {
+    condition {
+      age = 90
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_storage_bucket_iam_member" "cloud_run_access" {
+  bucket = google_storage_bucket.audit_logs.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${var.existing_service_account_email}"
+}
