@@ -18,7 +18,7 @@ resource "google_pubsub_subscription" "audit_logs_push_subscription" {
 
   labels = var.labels
 
-  ack_deadline_seconds = 300
+  ack_deadline_seconds       = 300
   message_retention_duration = "86400s"
   retain_acked_messages      = false
 

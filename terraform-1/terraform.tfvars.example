@@ -1,6 +1,5 @@
 # Required variables - Update with your values
-project_id                     = "your-gcp-project-id"
-existing_service_account_email = "your-existing-service-account@your-project.iam.gserviceaccount.com"
+project_id = "your-gcp-project-id"
 
 # Optional variables - Can use defaults
 region                = "us-central1"

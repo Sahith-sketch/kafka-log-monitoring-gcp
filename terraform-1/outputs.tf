@@ -42,12 +42,12 @@ output "pubsub_subscription_id" {
 
 output "storage_bucket_name" {
   description = "Storage bucket name for audit logs"
-  value       = google_storage_bucket.audit_logs_bucket.name
+  value       = google_storage_bucket.audit_logs.name
 }
 
 output "storage_bucket_url" {
   description = "Storage bucket URL"
-  value       = google_storage_bucket.audit_logs_bucket.url
+  value       = google_storage_bucket.audit_logs.url
 }
 
 output "service_account_email" {

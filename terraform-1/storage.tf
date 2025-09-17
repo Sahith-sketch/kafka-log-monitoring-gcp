@@ -19,5 +19,5 @@ resource "google_storage_bucket" "audit_logs" {
 resource "google_storage_bucket_iam_member" "cloud_run_access" {
   bucket = google_storage_bucket.audit_logs.name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${var.existing_service_account_email}"
+  member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }

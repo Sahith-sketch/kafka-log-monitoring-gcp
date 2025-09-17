@@ -7,8 +7,8 @@ resource "google_cloud_run_v2_service" "audit_processor" {
   labels = var.labels
 
   template {
-    service_account = var.existing_service_account_email
-    
+    service_account = google_service_account.cloud_run_sa.email
+
     scaling {
       max_instance_count = 100
       min_instance_count = 0
@@ -16,7 +16,7 @@ resource "google_cloud_run_v2_service" "audit_processor" {
 
     containers {
       image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.audit_processor_repo.repository_id}/${var.service_name}:latest"
-      
+
       ports {
         container_port = 8080
       }
@@ -107,7 +107,7 @@ resource "google_cloud_run_v2_service_iam_member" "invoker" {
   location = var.region
   name     = google_cloud_run_v2_service.audit_processor.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${var.existing_service_account_email}"
+  member   = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
 # Allow unauthenticated access for Pub/Sub push

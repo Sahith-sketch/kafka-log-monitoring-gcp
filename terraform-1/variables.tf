@@ -33,11 +33,6 @@ variable "log_sink_name" {
   default     = "audit-log-sink"
 }
 
-variable "existing_service_account_email" {
-  description = "Email of existing service account to use"
-  type        = string
-}
-
 variable "batch_size" {
   description = "Batch size for processing"
   type        = number

@@ -11,7 +11,7 @@ resource "google_artifact_registry_repository" "audit_processor_repo" {
   cleanup_policies {
     id     = "keep-minimum-versions"
     action = "KEEP"
-    
+
     most_recent_versions {
       keep_count = 10
     }
@@ -20,7 +20,7 @@ resource "google_artifact_registry_repository" "audit_processor_repo" {
   cleanup_policies {
     id     = "delete-old-versions"
     action = "DELETE"
-    
+
     condition {
       older_than = "2592000s" # 30 days
     }
@@ -33,5 +33,5 @@ resource "google_artifact_registry_repository_iam_member" "cloud_run_access" {
   location   = google_artifact_registry_repository.audit_processor_repo.location
   repository = google_artifact_registry_repository.audit_processor_repo.name
   role       = "roles/artifactregistry.reader"
-  member     = "serviceAccount:${var.existing_service_account_email}"
+  member     = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }

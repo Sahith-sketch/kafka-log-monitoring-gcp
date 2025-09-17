@@ -15,7 +15,7 @@ resource "google_project_service" "required_apis" {
   service = each.value
 
   disable_dependent_services = false
-  disable_on_destroy        = false
+  disable_on_destroy         = false
 
   timeouts {
     create = "30m"
