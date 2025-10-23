@@ -107,7 +107,7 @@ func (p *Processor) convertToKafkaMessage(log models.AuditLog) models.KafkaMessa
 }
 
 func (p *Processor) ProcessLog(ctx context.Context, log models.AuditLog) error {
-	logger.WithField("insertId", log.InsertId).Info("Processing audit log")
+	logger.WithField("auditLog", log).Info("Received audit log from Pub/Sub")
 
 	if ctx.Err() != nil {
 		return ctx.Err()
