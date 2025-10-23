@@ -1,0 +1,118 @@
+name: CD
+
+on:
+  pull_request:
+    branches: [dev]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [dev, test, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - test
+        - prod
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  SERVICE_NAME: audit-processor
+  REGISTRY: ${{ secrets.GCP_PROJECT_ID }}-docker.pkg.dev
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || (github.event_name == 'pull_request' && 'dev') || (github.ref == 'refs/heads/main' && 'prod') || (github.ref == 'refs/heads/test' && 'test') || 'dev' }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up Podman
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y podman
+        
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      
+    - name: Configure Podman for Artifact Registry
+      run: |
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+        
+    - name: Build image with Podman
+      run: |
+        IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}-repo/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+        podman build -t $IMAGE_TAG .
+        podman tag $IMAGE_TAG "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}-repo/${{ env.SERVICE_NAME }}:latest"
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+        
+    - name: Push image to Artifact Registry
+      run: |
+        podman push ${{ env.IMAGE_TAG }}
+        podman push "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}-repo/${{ env.SERVICE_NAME }}:latest"
+        
+    - name: Set environment
+      run: |
+        ENV=${{ github.event.inputs.environment || (github.event_name == 'pull_request' && 'dev') || (github.ref == 'refs/heads/main' && 'prod') || (github.ref == 'refs/heads/test' && 'test') || 'dev' }}
+        echo "DEPLOY_ENV=$ENV" >> $GITHUB_ENV
+        echo "SERVICE_NAME_ENV=${{ env.SERVICE_NAME }}-$ENV" >> $GITHUB_ENV
+        
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy ${{ env.SERVICE_NAME_ENV }} \
+          --image=${{ env.IMAGE_TAG }} \
+          --region=${{ env.REGION }} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --set-env-vars="ENVIRONMENT=${{ env.DEPLOY_ENV }},GCS_ENABLED=true,KAFKA_ENABLED=true,PROJECT_ID=${{ env.PROJECT_ID }},GCS_BUCKET=${{ secrets.GCS_BUCKET }},GCS_PATH=audit-logs,KAFKA_BROKERS=${{ secrets.KAFKA_BROKERS }},KAFKA_TOPIC=${{ secrets.KAFKA_TOPIC }},KAFKA_CA_CERT_SECRET=${{ secrets.KAFKA_CA_CERT_SECRET }},KAFKA_CLIENT_CERT_SECRET=${{ secrets.KAFKA_CLIENT_CERT_SECRET }},KAFKA_CLIENT_KEY_SECRET=${{ secrets.KAFKA_CLIENT_KEY_SECRET }}" \
+          --memory=2Gi \
+          --cpu=2 \
+          --min-instances=0 \
+          --max-instances=10 \
+          --timeout=300 \
+          --concurrency=100 \
+          --vpc-connector="${{ secrets.VPC_CONNECTOR_NAME }}" \
+          --vpc-egress=all-traffic
+          
+    - name: Update traffic
+      run: |
+        gcloud run services update-traffic ${{ env.SERVICE_NAME_ENV }} \
+          --to-latest \
+          --region=${{ env.REGION }}
+          
+    - name: Get service URL
+      run: |
+        SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME_ENV }} \
+          --region=${{ env.REGION }} \
+          --format='value(status.url)')
+        echo "Service deployed to ${{ env.DEPLOY_ENV }} at: $SERVICE_URL"
+        echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+        
+    - name: Health check
+      run: |
+        sleep 30
+        curl -f ${{ env.SERVICE_URL }}/health || exit 1
+        
+    - name: Comment PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `Deployment Successful\n\nEnvironment: ${{ env.DEPLOY_ENV }}\nService URL: ${{ env.SERVICE_URL }}\nHealth Check: Passed\n\nFeatures:\n- Cloud NAT enabled for egress traffic\n- VPC connector configured\n- Auto-scaling enabled (0-10 instances)\n- Health checks configured`
+          })
